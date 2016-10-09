@@ -1,25 +1,32 @@
+import errno
+import hmac
 import os
 import sys
-import errno
+
+from hashlib import sha256
+
+import xattr
 
 from fuse import FUSE, FuseOSError, Operations
-
-import hmac
-from hashlib import sha256
 
 from Crypto.Cipher import AES
 from Crypto.Util import Counter
 
+from base64 import b16encode
+
 LIMIT = 1000
+VERIFY = False
+BUFFER = 1024*16
 
 class Passthrough(Operations):
-    def __init__(self, root, key):
+    def __init__(self, root, key, decrypt):
         self.root = root
-        self.hmac = hmac.new(key, digestmod=sha256)
+        self.hmac = hmac.new(key[:16], digestmod=sha256)
+        self.enc = AES.new(key[16:], AES.MODE_ECB)
         self.keys = {}
+        self.decrypt = decrypt
 
     # Helpers
-    # =======
 
     def _full_path(self, partial):
         if partial.startswith("/"):
@@ -27,25 +34,45 @@ class Passthrough(Operations):
         path = os.path.join(self.root, partial)
         return path
 
-    def _getkey(self, path, fh):
-        if fh in self.keys:
-            return self.keys[fh]
-        hmac = self.hmac.copy()
-        hmac.update(path)
-        h = hmac.digest()
-        self.keys[fh] = h
+    def _getkey(self, path):
+        if path in self.keys:
+            return self.keys[path]
+        if self.decrypt:
+            h = xattr.getxattr(open(self._full_path(path)), 'siv')
+            h = self.enc.decrypt(h)
+            if VERIFY:
+                hmac = self.hmac.copy()
+                with open(self._full_path(path)) as f:
+                    pos = 0
+                    while True:
+                        d = f.read(BUFFER)
+                        if not d:
+                            break
+                        hmac.update(self._enc(h, pos, d))
+                        pos += len(d)
+                hmac = hmac.digest()[:16]
+                if h != hmac:
+                    raise FuseOSError(errno.EPERM)
+        else:
+            hmac = self.hmac.copy()
+            with open(self._full_path(path)) as f:
+                while True:
+                    d = f.read(BUFFER)
+                    if not d:
+                        break
+                    hmac.update(d)
+            h = hmac.digest()[:16]
+        self.keys[path] = h
         return h
 
-    # TODO: CTR is not secure for this in general, but...
-    # most bup data is in object files that are only written once
     def _enc(self, key, offset, data):
         index = offset // 16
         ctr = Counter.new(128, initial_value=index)
-        aes = AES.new(key[:16], AES.MODE_CTR, counter=ctr)
+        aes = AES.new(key, AES.MODE_CTR, counter=ctr)
         return aes.encrypt(data)
 
+
     # Filesystem methods
-    # ==================
 
     def access(self, path, mode):
         full_path = self._full_path(path)
@@ -85,8 +112,21 @@ class Passthrough(Operations):
     def utimens(self, path, times=None):
         return os.utime(self._full_path(path), times)
 
+
+    # Xatrrs
+
+    def getxattr(self, path, name, position=0):
+        if name == 'siv' and not self.decrypt:
+            return self.enc.encrypt(self._getkey(path))[position:]
+        raise FuseOSError(ENOTSUP)
+
+    def listxattr(self, path):
+        if not self.decrypt:
+            return ['siv']
+        return []
+
+
     # File methods
-    # ============
 
     def open(self, path, flags):
         full_path = self._full_path(path)
@@ -97,7 +137,7 @@ class Passthrough(Operations):
         raise FuseOSError(errno.EROFS)
 
     def read(self, path, length, offset, fh):
-        h = self._getkey(path, fh)
+        h = self._getkey(path)
         off = 16 * (offset // 16)
         l = length + offset - off
         os.lseek(fh, off, os.SEEK_SET)
@@ -107,14 +147,14 @@ class Passthrough(Operations):
         return data
 
     def release(self, path, fh):
-        self.keys.pop(fh, None)
+        self.keys.pop(path, None)
         return os.close(fh)
 
 
-def main(mountpoint, root, rawkey):
+def main(mountpoint, root, rawkey, decrypt):
     key = sha256(rawkey).digest()
-    FUSE(Passthrough(root, key), mountpoint, nothreads=True, foreground=True)
+    FUSE(Passthrough(root, key, decrypt), mountpoint, nothreads=True, foreground=True)
 
 if __name__ == '__main__':
-    main(sys.argv[2], sys.argv[1], sys.argv[3])
+    main(sys.argv[2], sys.argv[1], sys.argv[3], '-d' in sys.argv)
 
