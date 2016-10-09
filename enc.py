@@ -11,7 +11,6 @@ from Crypto.Cipher import AES
 from Crypto.Util import Counter
 
 LIMIT = 1000
-debug = 0
 
 class Passthrough(Operations):
     def __init__(self, root, key):
@@ -60,12 +59,6 @@ class Passthrough(Operations):
         if not os.access(full_path, mode):
             raise FuseOSError(errno.EACCES)
 
-    def chmod(self, path, mode):
-        raise FuseOSError(errno.EROFS)
-
-    def chown(self, path, uid, gid):
-        raise FuseOSError(errno.EROFS)
-
     def getattr(self, path, fh=None):
         full_path = self._full_path(path)
         st = os.lstat(full_path)
@@ -89,33 +82,12 @@ class Passthrough(Operations):
         else:
             return pathname
 
-    def mknod(self, path, mode, dev):
-        raise FuseOSError(errno.EROFS)
-
-    def rmdir(self, path):
-        raise FuseOSError(errno.EROFS)
-
-    def mkdir(self, path, mode):
-        raise FuseOSError(errno.EROFS)
-
     def statfs(self, path):
         full_path = self._full_path(path)
         stv = os.statvfs(full_path)
         return dict((key, getattr(stv, key)) for key in ('f_bavail', 'f_bfree',
             'f_blocks', 'f_bsize', 'f_favail', 'f_ffree', 'f_files', 'f_flag',
             'f_frsize', 'f_namemax'))
-
-    def unlink(self, path):
-        raise FuseOSError(errno.EROFS)
-
-    def symlink(self, name, target):
-        raise FuseOSError(errno.EROFS)
-
-    def rename(self, old, new):
-        raise FuseOSError(errno.EROFS)
-
-    def link(self, target, name):
-        raise FuseOSError(errno.EROFS)
 
     def utimens(self, path, times=None):
         return os.utime(self._full_path(path), times)
@@ -141,23 +113,8 @@ class Passthrough(Operations):
             return data[offset-off:][:length]
         return data
 
-    def write(self, path, buf, offset, fh):
-        if debug: print 'tried write'
-        raise FuseOSError(errno.EROFS)
-
-    def truncate(self, path, length, fh=None):
-        if debug: print 'tried truncate'
-        raise FuseOSError(errno.EROFS)
-
-    def flush(self, path, fh):
-        pass
-
     def release(self, path, fh):
         return os.close(fh)
-
-    def fsync(self, path, fdatasync, fh):
-        if debug: print 'tried fsync'
-        raise FuseOSError(errno.EROFS)
 
 
 def main(mountpoint, root, rawkey):
