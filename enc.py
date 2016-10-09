@@ -17,7 +17,6 @@ class Passthrough(Operations):
         self.root = root
         self.hmac = hmac.new(key, digestmod=sha256)
         self.keys = {}
-        self.oldkeys = {}
 
     # Helpers
     # =======
@@ -28,19 +27,13 @@ class Passthrough(Operations):
         path = os.path.join(self.root, partial)
         return path
 
-    def _getkey(self, path):
-        if path in self.keys:
-            return self.keys[path]
-        if path in self.oldkeys:
-            h = self.oldkeys[path]
-        else:
-            hmac = self.hmac.copy()
-            hmac.update(path)
-            h = hmac.digest()
-        if len(self.keys) > LIMIT:
-            self.oldkeys = self.keys
-            self.keys = {}
-        self.keys[path] = h
+    def _getkey(self, path, fh):
+        if fh in self.keys:
+            return self.keys[fh]
+        hmac = self.hmac.copy()
+        hmac.update(path)
+        h = hmac.digest()
+        self.keys[fh] = h
         return h
 
     # TODO: CTR is not secure for this in general, but...
@@ -104,7 +97,7 @@ class Passthrough(Operations):
         raise FuseOSError(errno.EROFS)
 
     def read(self, path, length, offset, fh):
-        h = self._getkey(path)
+        h = self._getkey(path, fh)
         off = 16 * (offset // 16)
         l = length + offset - off
         os.lseek(fh, off, os.SEEK_SET)
@@ -114,6 +107,7 @@ class Passthrough(Operations):
         return data
 
     def release(self, path, fh):
+        self.keys.pop(fh, None)
         return os.close(fh)
 
 
