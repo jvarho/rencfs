@@ -2,11 +2,13 @@ import os
 import hashlib
 
 fn = 'test2/f1'
+fno = 'test1/f1'
+fnd = 'test3/f1'
 
 d = open(fn).read()
 l = len(d)
 h = hashlib.sha256(d).hexdigest()
-print h, l
+print h
 
 
 h = hashlib.sha256()
@@ -21,5 +23,7 @@ except:
     print i, fh
     raise
 
-print h.hexdigest(), i
+print h.hexdigest()
 
+print hashlib.sha256(open(fno).read()).hexdigest()
+print hashlib.sha256(open(fnd).read()).hexdigest()
