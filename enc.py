@@ -1,3 +1,5 @@
+#!/usr/bin/python
+
 import errno
 import hmac
 import os
@@ -121,8 +123,13 @@ class Passthrough(Operations):
         raise FuseOSError(ENOTSUP)
 
     def listxattr(self, path):
-        if not self.decrypt:
+        if self.decrypt:
+            return []
+        try:
+            open(self._full_path(path))
             return ['siv']
+        except IOError:
+            return []
         return []
 
 
