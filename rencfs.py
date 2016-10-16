@@ -18,7 +18,7 @@ VERIFY = True
 BUFFER = 1024*16
 MAC_SIZE = 16
 
-class Passthrough(Operations):
+class RencFS(Operations):
     def __init__(self, root, key, decrypt):
         self.root = root
         self.hmac = hmac.new(key[:16], digestmod=sha256)
@@ -28,8 +28,8 @@ class Passthrough(Operations):
 
     # Helpers
 
-    def _full_path(self, partial):
-        if partial.startswith("/"):
+    def _fullpath(self, partial):
+        if partial.startswith('/'):
             partial = partial[1:]
         path = os.path.join(self.root, partial)
         return path
@@ -38,11 +38,11 @@ class Passthrough(Operations):
         if path in self.keys:
             return self.keys[path]
         if self.decrypt:
-            h = open(self._full_path(path)).read(MAC_SIZE)
+            h = open(self._fullpath(path)).read(MAC_SIZE)
             h = self.aes_ecb.decrypt(h)
             if VERIFY:
                 hmac = self.hmac.copy()
-                with open(self._full_path(path)) as f:
+                with open(self._fullpath(path)) as f:
                     f.seek(MAC_SIZE)
                     pos = MAC_SIZE
                     while True:
@@ -56,7 +56,7 @@ class Passthrough(Operations):
                     raise FuseOSError(errno.EPERM)
         else:
             hmac = self.hmac.copy()
-            with open(self._full_path(path)) as f:
+            with open(self._fullpath(path)) as f:
                 while True:
                     d = f.read(BUFFER)
                     if not d:
@@ -78,12 +78,12 @@ class Passthrough(Operations):
     # Filesystem methods
 
     def access(self, path, mode):
-        full_path = self._full_path(path)
+        full_path = self._fullpath(path)
         if not os.access(full_path, mode):
             raise FuseOSError(errno.EACCES)
 
     def getattr(self, path, fh=None):
-        full_path = self._full_path(path)
+        full_path = self._fullpath(path)
         st = os.lstat(full_path)
         st = dict((key, getattr(st, key)) for key in (
             'st_atime', 'st_ctime', 'st_gid', 'st_mode',
@@ -96,7 +96,7 @@ class Passthrough(Operations):
         return st
 
     def readdir(self, path, fh):
-        full_path = self._full_path(path)
+        full_path = self._fullpath(path)
 
         dirents = ['.', '..']
         if os.path.isdir(full_path):
@@ -105,7 +105,7 @@ class Passthrough(Operations):
             yield r
 
     def readlink(self, path):
-        pathname = os.readlink(self._full_path(path))
+        pathname = os.readlink(self._fullpath(path))
         if pathname.startswith("/"):
             # Path name is absolute, sanitize it.
             return os.path.relpath(pathname, self.root)
@@ -113,20 +113,21 @@ class Passthrough(Operations):
             return pathname
 
     def statfs(self, path):
-        full_path = self._full_path(path)
+        full_path = self._fullpath(path)
         stv = os.statvfs(full_path)
-        return dict((key, getattr(stv, key)) for key in ('f_bavail', 'f_bfree',
-            'f_blocks', 'f_bsize', 'f_favail', 'f_ffree', 'f_files', 'f_flag',
-            'f_frsize', 'f_namemax'))
+        return dict((key, getattr(stv, key)) for key in (
+            'f_bavail', 'f_bfree', 'f_blocks', 'f_bsize', 'f_favail',
+            'f_ffree', 'f_files', 'f_flag', 'f_frsize', 'f_namemax'
+        ))
 
     def utimens(self, path, times=None):
-        return os.utime(self._full_path(path), times)
+        return os.utime(self._fullpath(path), times)
 
 
     # File methods
 
     def open(self, path, flags):
-        full_path = self._full_path(path)
+        full_path = self._fullpath(path)
         return os.open(full_path, flags)
 
     def create(self, path, mode, fi=None):
@@ -158,8 +159,7 @@ class Passthrough(Operations):
 
 def main(mountpoint, root, rawkey, decrypt):
     key = sha256(rawkey).digest()
-    FUSE(Passthrough(root, key, decrypt), mountpoint, nothreads=True, foreground=True)
+    FUSE(RencFS(root, key, decrypt), mountpoint, nothreads=True, foreground=True)
 
 if __name__ == '__main__':
     main(sys.argv[2], sys.argv[1], sys.argv[3], '-d' in sys.argv)
-

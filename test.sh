@@ -1,6 +1,6 @@
-python enc.py test1 test2 'helloworld' &
+python rencfs.py test1 test2 'helloworld' &
 sleep 1
-python enc.py test2 test3 'helloworld' -d &
+python rencfs.py test2 test3 'helloworld' -d &
 sleep 1
 sha1sum test1/f1
 sha1sum test2/f1
