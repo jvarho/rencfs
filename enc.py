@@ -89,7 +89,10 @@ class Passthrough(Operations):
             'st_atime', 'st_ctime', 'st_gid', 'st_mode',
             'st_mtime', 'st_nlink', 'st_size', 'st_uid'
         ))
-        st['st_size'] += MAC_SIZE
+        if self.decrypt:
+            st['st_size'] -= MAC_SIZE
+        else:
+            st['st_size'] += MAC_SIZE
         return st
 
     def readdir(self, path, fh):
@@ -137,8 +140,9 @@ class Passthrough(Operations):
             offset += MAC_SIZE
         else:
             if offset < MAC_SIZE:
-                data = self.aes_ecb.encrypt(h)[offset:MAC_SIZE]
+                data = self.aes_ecb.encrypt(h)[offset:]
                 length -= MAC_SIZE - offset
+                offset = 0
             else:
                 offset -= MAC_SIZE
         off = (offset // 16) * 16
