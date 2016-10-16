@@ -7,8 +7,6 @@ import sys
 
 from hashlib import sha256
 
-import xattr
-
 from fuse import FUSE, FuseOSError, Operations
 
 from Crypto.Cipher import AES
@@ -16,15 +14,15 @@ from Crypto.Util import Counter
 
 from base64 import b16encode
 
-LIMIT = 1000
-VERIFY = False
+VERIFY = True
 BUFFER = 1024*16
+MAC_SIZE = 16
 
 class Passthrough(Operations):
     def __init__(self, root, key, decrypt):
         self.root = root
         self.hmac = hmac.new(key[:16], digestmod=sha256)
-        self.enc = AES.new(key[16:], AES.MODE_ECB)
+        self.aes_ecb = AES.new(key[16:], AES.MODE_ECB)
         self.keys = {}
         self.decrypt = decrypt
 
@@ -40,12 +38,13 @@ class Passthrough(Operations):
         if path in self.keys:
             return self.keys[path]
         if self.decrypt:
-            h = xattr.getxattr(open(self._full_path(path)), 'siv')
-            h = self.enc.decrypt(h)
+            h = open(self._full_path(path)).read(MAC_SIZE)
+            h = self.aes_ecb.decrypt(h)
             if VERIFY:
                 hmac = self.hmac.copy()
                 with open(self._full_path(path)) as f:
-                    pos = 0
+                    f.seek(MAC_SIZE)
+                    pos = MAC_SIZE
                     while True:
                         d = f.read(BUFFER)
                         if not d:
@@ -69,6 +68,8 @@ class Passthrough(Operations):
 
     def _enc(self, key, offset, data):
         index = offset // 16
+        if self.decrypt:
+            index -= 1
         ctr = Counter.new(128, initial_value=index)
         aes = AES.new(key, AES.MODE_CTR, counter=ctr)
         return aes.encrypt(data)
@@ -84,8 +85,12 @@ class Passthrough(Operations):
     def getattr(self, path, fh=None):
         full_path = self._full_path(path)
         st = os.lstat(full_path)
-        return dict((key, getattr(st, key)) for key in ('st_atime', 'st_ctime',
-                     'st_gid', 'st_mode', 'st_mtime', 'st_nlink', 'st_size', 'st_uid'))
+        st = dict((key, getattr(st, key)) for key in (
+            'st_atime', 'st_ctime', 'st_gid', 'st_mode',
+            'st_mtime', 'st_nlink', 'st_size', 'st_uid'
+        ))
+        st['st_size'] += MAC_SIZE
+        return st
 
     def readdir(self, path, fh):
         full_path = self._full_path(path)
@@ -115,24 +120,6 @@ class Passthrough(Operations):
         return os.utime(self._full_path(path), times)
 
 
-    # Xatrrs
-
-    def getxattr(self, path, name, position=0):
-        if name == 'siv' and not self.decrypt:
-            return self.enc.encrypt(self._getkey(path))[position:]
-        raise FuseOSError(ENOTSUP)
-
-    def listxattr(self, path):
-        if self.decrypt:
-            return []
-        try:
-            open(self._full_path(path))
-            return ['siv']
-        except IOError:
-            return []
-        return []
-
-
     # File methods
 
     def open(self, path, flags):
@@ -144,14 +131,21 @@ class Passthrough(Operations):
         raise FuseOSError(errno.EROFS)
 
     def read(self, path, length, offset, fh):
+        data = ''
         h = self._getkey(path)
-        off = 16 * (offset // 16)
+        if self.decrypt:
+            offset += MAC_SIZE
+        else:
+            if offset < MAC_SIZE:
+                data = self.aes_ecb.encrypt(h)[offset:MAC_SIZE]
+                length -= MAC_SIZE - offset
+            else:
+                offset -= MAC_SIZE
+        off = (offset // 16) * 16
         l = length + offset - off
         os.lseek(fh, off, os.SEEK_SET)
-        data = self._enc(h, offset, os.read(fh, l))
-        if off != offset:
-            return data[offset-off:][:length]
-        return data
+        data += self._enc(h, off, os.read(fh, l))
+        return data[offset - off:]
 
     def release(self, path, fh):
         self.keys.pop(path, None)
