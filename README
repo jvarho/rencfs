@@ -1,0 +1,48 @@
+RencFS
+===
+
+FUSE-based encrypting filesystem.
+Meant as a simpler alternative to encfs --reverse.
+
+
+Installation:
+---
+
+Requires:
+* fusepy, e.g. `pip install fusepy`
+* PyCrypto, e.g. `pip install pycrypto`
+
+Usage:
+---
+
+    rencfs.py DIR MOUNTPOINT KEY [-d]
+   
+Mount an encrypted view of the data in DIR at MOUNTPOINT using KEY.
+
+KEY should be a symmetric key, not a password.
+It is hashed for normalization only, not using a password hash.
+
+With the -d option you can do the reverse.
+
+
+Algorithms
+---
+
+Uses AES-128 in SIV mode using HMAC-SHA256 as a 128-bit MAC.
+
+
+Caveats
+---
+
+This is extremely simple.
+
+* Deterministic encryption: attackers can tell if files are equal.
+  (WAD: allows deduplication)
+* File contents only: filenames, sizes, directory structure not encrypted.
+* Not vetted against active attackers: the only "supported" mode is using
+  this to view data and copy that data elsewhere onto a real FS.
+* Anything can happen if the original DIR is written to while the encrypted
+  view is being read.
+
+The second point may change in the future.
+For now my use case does not require encryption of paths.

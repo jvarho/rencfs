@@ -28,6 +28,8 @@ from Crypto.Util import Counter
 from fuse import FUSE, FuseOSError, Operations
 
 
+__version__ = '0.1'
+
 BUFFER = 1024*16
 MAC_SIZE = 16
 VERIFY = True
