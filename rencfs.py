@@ -5,18 +5,18 @@ import hmac
 import os
 import sys
 
+from base64 import b16encode
 from hashlib import sha256
-
-from fuse import FUSE, FuseOSError, Operations
 
 from Crypto.Cipher import AES
 from Crypto.Util import Counter
 
-from base64 import b16encode
+from fuse import FUSE, FuseOSError, Operations
 
-VERIFY = True
+
 BUFFER = 1024*16
 MAC_SIZE = 16
+VERIFY = True
 
 class RencFS(Operations):
     def __init__(self, root, key, decrypt):
@@ -34,42 +34,40 @@ class RencFS(Operations):
         path = os.path.join(self.root, partial)
         return path
 
+    def _mac(self, path, h=''):
+        pos, hmac = 0, self.hmac.copy()
+        with open(self._fullpath(path)) as f:
+            if self.decrypt:
+                f.seek(MAC_SIZE)
+                pos = MAC_SIZE
+            while True:
+                d = f.read(BUFFER)
+                if not d:
+                    break
+                if self.decrypt:
+                    hmac.update(self._enc(h, pos, d))
+                else:
+                    hmac.update(d)
+                pos += len(d)
+        return hmac.digest()[:MAC_SIZE]
+
     def _getkey(self, path):
         if path in self.keys:
             return self.keys[path]
         if self.decrypt:
             h = open(self._fullpath(path)).read(MAC_SIZE)
             h = self.aes_ecb.decrypt(h)
-            if VERIFY:
-                hmac = self.hmac.copy()
-                with open(self._fullpath(path)) as f:
-                    f.seek(MAC_SIZE)
-                    pos = MAC_SIZE
-                    while True:
-                        d = f.read(BUFFER)
-                        if not d:
-                            break
-                        hmac.update(self._enc(h, pos, d))
-                        pos += len(d)
-                hmac = hmac.digest()[:16]
-                if h != hmac:
-                    raise FuseOSError(errno.EPERM)
+            if VERIFY and h != self._mac(path, h):
+                raise FuseOSError(errno.EPERM)
         else:
-            hmac = self.hmac.copy()
-            with open(self._fullpath(path)) as f:
-                while True:
-                    d = f.read(BUFFER)
-                    if not d:
-                        break
-                    hmac.update(d)
-            h = hmac.digest()[:16]
+            h = self._mac(path)
         self.keys[path] = h
         return h
 
     def _enc(self, key, offset, data):
-        index = offset // 16
         if self.decrypt:
-            index -= 1
+            offset -= MAC_SIZE
+        index = offset // 16
         ctr = Counter.new(128, initial_value=index)
         aes = AES.new(key, AES.MODE_CTR, counter=ctr)
         return aes.encrypt(data)
