@@ -30,6 +30,8 @@ from fuse import FUSE, FuseOSError, Operations
 
 __version__ = '0.1'
 
+BLOCK_MASK = 15
+BLOCK_SIZE = 16
 BUFFER = 1024*16
 MAC_SIZE = 16
 VERIFY = True
@@ -61,10 +63,8 @@ class RencFS(Operations):
                 if not d:
                     break
                 if self.decrypt:
-                    hmac.update(self._enc(h, pos, d))
-                else:
-                    hmac.update(d)
-                pos += len(d)
+                    pos, d = len(d), self._enc(h, pos, d)
+                hmac.update(d)
         return hmac.digest()[:MAC_SIZE]
 
     def _getkey(self, path):
@@ -83,10 +83,13 @@ class RencFS(Operations):
     def _enc(self, key, offset, data):
         if self.decrypt:
             offset -= MAC_SIZE
-        index = offset // 16
+        index = offset // BLOCK_SIZE
         ctr = Counter.new(128, initial_value=index)
         aes = AES.new(key, AES.MODE_CTR, counter=ctr)
-        return aes.encrypt(data)
+        if not offset & BLOCK_MASK:
+            return aes.encrypt(data)
+        data = '\0' * (offset & BLOCK_MASK) + data
+        return aes.encrypt(data)[offset & BLOCK_MASK:]
 
 
     # Filesystem methods
@@ -152,18 +155,15 @@ class RencFS(Operations):
         h = self._getkey(path)
         if self.decrypt:
             offset += MAC_SIZE
+        elif offset < MAC_SIZE:
+            data = self.aes_ecb.encrypt(h)[offset:]
+            length -= MAC_SIZE - offset
+            offset = 0
         else:
-            if offset < MAC_SIZE:
-                data = self.aes_ecb.encrypt(h)[offset:]
-                length -= MAC_SIZE - offset
-                offset = 0
-            else:
-                offset -= MAC_SIZE
-        off = (offset // 16) * 16
-        l = length + offset - off
-        os.lseek(fh, off, os.SEEK_SET)
-        data += self._enc(h, off, os.read(fh, l))
-        return data[offset - off:]
+            offset -= MAC_SIZE
+        os.lseek(fh, offset, os.SEEK_SET)
+        data += self._enc(h, offset, os.read(fh, length))
+        return data
 
     def release(self, path, fh):
         self.keys.pop(path, None)
