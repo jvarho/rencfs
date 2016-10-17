@@ -32,7 +32,7 @@ __version__ = '0.1'
 
 BLOCK_MASK = 15
 BLOCK_SIZE = 16
-BUFFER = 1024*16
+BUFFER_SIZE = 1024*16
 MAC_SIZE = 16
 VERIFY = True
 
@@ -52,32 +52,31 @@ class RencFS(Operations):
         path = os.path.join(self.root, partial)
         return path
 
-    def _mac(self, path, h=''):
+    def _mac(self, fh, h=''):
         pos, hmac = 0, self.hmac.copy()
-        with open(self._fullpath(path)) as f:
+        if self.decrypt:
+            pos = MAC_SIZE
+        os.lseek(fh, pos, os.SEEK_SET)
+        while True:
+            d = os.read(fh, BUFFER_SIZE)
+            if not d:
+                break
             if self.decrypt:
-                f.seek(MAC_SIZE)
-                pos = MAC_SIZE
-            while True:
-                d = f.read(BUFFER)
-                if not d:
-                    break
-                if self.decrypt:
-                    pos, d = len(d), self._enc(h, pos, d)
-                hmac.update(d)
+                pos, d = len(d), self._enc(h, pos, d)
+            hmac.update(d)
         return hmac.digest()[:MAC_SIZE]
 
-    def _getkey(self, path):
-        if path in self.keys:
-            return self.keys[path]
+    def _getkey(self, fh):
+        if fh in self.keys:
+            return self.keys[fh]
         if self.decrypt:
-            h = open(self._fullpath(path)).read(MAC_SIZE)
-            h = self.aes_ecb.decrypt(h)
-            if VERIFY and h != self._mac(path, h):
+            os.lseek(fh, 0, os.SEEK_SET)
+            h = self.aes_ecb.decrypt(os.read(fh, MAC_SIZE))
+            if VERIFY and h != self._mac(fh, h):
                 raise FuseOSError(errno.EPERM)
         else:
-            h = self._mac(path)
-        self.keys[path] = h
+            h = self._mac(fh)
+        self.keys[fh] = h
         return h
 
     def _enc(self, key, offset, data):
@@ -152,7 +151,7 @@ class RencFS(Operations):
 
     def read(self, path, length, offset, fh):
         data = ''
-        h = self._getkey(path)
+        h = self._getkey(fh)
         if self.decrypt:
             offset += MAC_SIZE
         elif offset < MAC_SIZE:
@@ -166,7 +165,7 @@ class RencFS(Operations):
         return data
 
     def release(self, path, fh):
-        self.keys.pop(path, None)
+        self.keys.pop(fh, None)
         return os.close(fh)
 
 
