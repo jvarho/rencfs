@@ -145,7 +145,6 @@ class RencFS(Operations):
         return os.open(full_path, flags)
 
     def create(self, path, mode, fi=None):
-        if debug: print 'tried create'
         raise FuseOSError(errno.EROFS)
 
     def read(self, path, length, offset, fh):
