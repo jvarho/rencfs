@@ -2,7 +2,7 @@ RencFS
 ===
 
 FUSE-based encrypting filesystem.
-Meant as a simpler alternative to encfs --reverse.
+Meant as a simpler alternative to `encfs --reverse`.
 
 
 Installation:
@@ -11,6 +11,7 @@ Installation:
 Requires:
 * fusepy, e.g. `pip install fusepy`
 * PyCrypto, e.g. `pip install pycrypto`
+
 
 Usage:
 ---
@@ -40,7 +41,7 @@ This is extremely simple.
   (WAD: allows deduplication)
 * File contents only: filenames, sizes, directory structure not encrypted.
 * Not vetted against active attackers: the only "supported" mode is using
-  this to view data and copy that data elsewhere onto a real FS.
+  this to encrypt data and copy that data elsewhere onto a real FS.
 * Anything can happen if the original DIR is written to while the encrypted
   view is being read.
 
