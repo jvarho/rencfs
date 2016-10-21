@@ -114,10 +114,11 @@ class RencFS(Operations):
 
     def readdir(self, path, fh):
         full_path = self._fullpath(path)
-
         dirents = ['.', '..']
-        if os.path.isdir(full_path):
+        try:
             dirents.extend(os.listdir(full_path))
+        except OSError as e:
+            raise FuseOSError(e.errno)
         for r in dirents:
             yield r
 

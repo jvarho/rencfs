@@ -53,6 +53,18 @@ class EncryptTest(TestCase):
             len(list(self.fs.readdir('/', 0))),
             4
         )
+        self.assertRaises(
+            FuseOSError,
+            lambda a, b: list(self.fs.readdir(a, b)),
+            '__',
+            0
+        )
+        self.assertRaises(
+            FuseOSError,
+            lambda a, b: list(self.fs.readdir(a, b)),
+            self.tf,
+            0
+        )
 
     def test_readlink(self):
         self.assertEqual(
