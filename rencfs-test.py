@@ -110,9 +110,59 @@ class EncryptTest(TestCase):
         self.assertFalse(fh in self.fs.keys)
 
 
+class DecryptTest(TestCase):
+
+    @classmethod
+    def setUpClass(cls):
+        cls.td = 'test1/'
+        cls.tf = 'f2'
+        cls.tff = cls.td + cls.tf
+        cls.tl = 'l2'
+        cls.tlf = cls.td + cls.tl
+        with open(cls.tff, 'w') as f:
+            f.write(' '*128)
+        key = urandom(32)
+        fs = RencFS(cls.td, key, False)
+        d = fs.read(cls.tf, 1024, 0, fs.open(cls.tf, os.O_RDONLY))
+        with open(cls.tff, 'w') as f:
+            f.write(d)
+        cls.fs = RencFS(cls.td, key, True)
+        cls.fs2 = RencFS(cls.td, key[16:] + key[:16], True)
+
+    def test_getattr(self):
+        self.assertLess(
+            self.fs.getattr(self.tf)['st_size'],
+            os.lstat(self.tff).st_size
+        )
+        self.assertEqual(
+            self.fs.getattr(self.tf)['st_size'],
+            128
+        )
+
+    def test_read(self):
+        fh = self.fs.open(self.tf, os.O_RDONLY)
+        self.assertTrue(fh)
+        self.assertEqual(self.fs.read(self.tf, 1024, 0, fh), ' '*128)
+        self.assertEqual(self.fs.read(self.tf, 1, 1, fh), ' ')
+        self.assertEqual(len(self.fs.read(self.tf, 1, 129, fh)), 0)
+
+    def test_failure(self):
+        fh = self.fs2.open(self.tf, os.O_RDONLY)
+        self.assertTrue(fh)
+        self.assertRaises(
+            FuseOSError,
+            self.fs2.read,
+            self.tf,
+            1024,
+            0,
+            fh
+        )
+
+
 def main():
     tests = TestSuite()
     tests.addTest(defaultTestLoader.loadTestsFromTestCase(EncryptTest))
+    tests.addTest(defaultTestLoader.loadTestsFromTestCase(DecryptTest))
     TextTestRunner().run(tests)
 
 
