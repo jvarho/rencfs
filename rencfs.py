@@ -95,8 +95,9 @@ class RencFS(Operations):
 
     def access(self, path, mode):
         full_path = self._fullpath(path)
-        if not os.access(full_path, mode):
-            raise FuseOSError(errno.EACCES)
+        if mode in (os.W_OK, os.X_OK):
+            return False
+        return os.access(full_path, mode)
 
     def getattr(self, path, fh=None):
         full_path = self._fullpath(path)
@@ -122,11 +123,7 @@ class RencFS(Operations):
 
     def readlink(self, path):
         pathname = os.readlink(self._fullpath(path))
-        if pathname.startswith("/"):
-            # Path name is absolute, sanitize it.
-            return os.path.relpath(pathname, self.root)
-        else:
-            return pathname
+        return os.path.relpath(pathname, self.root)
 
     def statfs(self, path):
         full_path = self._fullpath(path)
@@ -137,7 +134,7 @@ class RencFS(Operations):
         ))
 
     def utimens(self, path, times=None):
-        return os.utime(self._fullpath(path), times)
+        raise FuseOSError(errno.EROFS)
 
 
     # File methods
@@ -155,13 +152,14 @@ class RencFS(Operations):
         if self.decrypt:
             offset += MAC_SIZE
         elif offset < MAC_SIZE:
-            data = self.aes_ecb.encrypt(h)[offset:]
+            data = self.aes_ecb.encrypt(h)[offset:offset+length]
             length -= MAC_SIZE - offset
             offset = 0
         else:
             offset -= MAC_SIZE
-        os.lseek(fh, offset, os.SEEK_SET)
-        data += self._enc(h, offset, os.read(fh, length))
+        if length > 0:
+            os.lseek(fh, offset, os.SEEK_SET)
+            data += self._enc(h, offset, os.read(fh, length))
         return data
 
     def release(self, path, fh):
