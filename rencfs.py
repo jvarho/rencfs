@@ -167,9 +167,9 @@ class RencFS(Operations):
         return os.close(fh)
 
 
-def main(mountpoint, root, rawkey, decrypt):
+def main(mountpoint, root, rawkey, decrypt): #pragma no cover
     key = sha256(rawkey).digest()
     FUSE(RencFS(root, key, decrypt), mountpoint, nothreads=True, foreground=True)
 
-if __name__ == '__main__':
+if __name__ == '__main__': #pragma no cover
     main(sys.argv[2], sys.argv[1], sys.argv[3], '-d' in sys.argv)
