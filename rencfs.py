@@ -95,9 +95,8 @@ class RencFS(Operations):
 
     def access(self, path, mode):
         full_path = self._fullpath(path)
-        if mode in (os.W_OK, os.X_OK):
-            return False
-        return os.access(full_path, mode)
+        if mode in (os.W_OK, os.X_OK) or not os.access(full_path, mode):
+            raise FuseOSError(errno.EACCES)
 
     def getattr(self, path, fh=None):
         full_path = self._fullpath(path)
