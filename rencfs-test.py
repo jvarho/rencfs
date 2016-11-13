@@ -38,9 +38,19 @@ class EncryptTest(TestCase):
         os.symlink(cls.tff, cls.tlf)
 
     def test_access(self):
-        self.assertFalse(self.fs.access('__', R_OK))
-        self.assertTrue(self.fs.access(self.tf, R_OK))
-        self.assertFalse(self.fs.access(self.tf, W_OK))
+        self.assertFalse(self.fs.access(self.tf, R_OK))
+        self.assertRaises(
+            FuseOSError,
+            self.fs.access,
+            '__',
+            R_OK
+        )
+        self.assertRaises(
+            FuseOSError,
+            self.fs.access,
+            self.tf,
+            W_OK
+        )
 
     def test_getattr(self):
         self.assertGreater(
