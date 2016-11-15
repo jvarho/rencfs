@@ -16,9 +16,9 @@ Requires:
 Usage:
 ---
 
-    rencfs.py DIR MOUNTPOINT KEY [-d]
+    rencfs.py [-d] ROOT MOUNTPOINT KEY
    
-Mount an encrypted view of the data in DIR at MOUNTPOINT using KEY.
+Mount an encrypted view of the data in ROOT at MOUNTPOINT using KEY.
 
 KEY should be a symmetric key, not a password.
 It is hashed for normalization only, not using a password hash.
