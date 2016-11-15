@@ -14,11 +14,16 @@
 # ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
 # OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 
+'''rencfs
+
+Reverse-encrypting filesystem based on FUSE
+'''
+
 import errno
 import hmac
 import os
-import sys
 
+from argparse import ArgumentParser, SUPPRESS
 from base64 import b16encode
 from hashlib import sha256
 
@@ -167,9 +172,27 @@ class RencFS(Operations):
         return os.close(fh)
 
 
-def main(mountpoint, root, rawkey, decrypt): #pragma no cover
-    key = sha256(rawkey).digest()
-    FUSE(RencFS(root, key, decrypt), mountpoint, nothreads=True, foreground=True)
-
 if __name__ == '__main__': #pragma no cover
-    main(sys.argv[2], sys.argv[1], sys.argv[3], '-d' in sys.argv)
+
+    def parse_args():
+        docstrings = __doc__.split('\n')
+        name = docstrings[0]
+        description = docstrings[-1]
+        parser = ArgumentParser(name, description=description)
+        parser.add_argument('-v', '--version', action='version',
+                            version='%(prog)s ' + __version__,
+                            help=SUPPRESS)
+        parser.add_argument('ROOT', help='directory to encrypt')
+        parser.add_argument('MOUNTPOINT', help='where to mount, must be empty')
+        parser.add_argument('KEY', help='master key used for encryption')
+        parser.add_argument('-d', '--decrypt', action='store_true',
+                            help='decrypt a copy of the encrypted filesystem')
+        return parser.parse_args()
+
+
+    def main(mountpoint, root, rawkey, decrypt):
+        key = sha256(rawkey).digest()
+        FUSE(RencFS(root, key, decrypt), mountpoint, nothreads=True, foreground=True)
+
+    args = parse_args()
+    main(args.MOUNTPOINT, args.ROOT, args.KEY, args.decrypt)
