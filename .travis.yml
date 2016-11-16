@@ -10,7 +10,6 @@ branches:
 
 python:
     - "2.7"
-    - "pypy"
 
 addons:
     apt:
