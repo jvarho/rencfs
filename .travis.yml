@@ -1,5 +1,9 @@
 language: python
 
+sudo: required
+
+dist: trusty
+
 branches:
     only:
         - master
@@ -7,6 +11,11 @@ branches:
 python:
     - "2.7"
     - "pypy"
+
+addons:
+    apt:
+        packages:
+            fuse
 
 install:
     - pip install fusepy
