@@ -32,9 +32,16 @@ class EncryptTest(TestCase):
         cls.tl = 'l2'
         cls.tlf = cls.td + cls.tl
         cls.fs = RencFS(cls.td, urandom(32), False)
+        try:
+            os.mkdir(cls.td)
+        except OSError:
+            pass
         with open(cls.tff, 'w') as f:
             f.write(' '*128)
-        os.remove(cls.tlf)
+        try:
+            os.remove(cls.tlf)
+        except OSError:
+            pass
         os.symlink(cls.tff, cls.tlf)
 
     def test_access(self):

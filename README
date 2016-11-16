@@ -9,6 +9,7 @@ Installation:
 ---
 
 Requires:
+* Python 2.7
 * fusepy, e.g. `pip install fusepy`
 * PyCrypto, e.g. `pip install pycrypto`
 
