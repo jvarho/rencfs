@@ -1,6 +1,8 @@
 RencFS
 ===
 
+[![Build Status](https://travis-ci.org/jvarho/rencfs.svg)](https://travis-ci.org/jvarho/rencfs)
+
 FUSE-based encrypting filesystem.
 Meant as a simpler alternative to `encfs --reverse`.
 
