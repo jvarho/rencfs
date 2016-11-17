@@ -33,7 +33,7 @@ from Crypto.Util import Counter
 from fuse import FUSE, FuseOSError, Operations
 
 
-__version__ = '0.3'
+__version__ = '0.4'
 
 BLOCK_MASK = 15
 BLOCK_SIZE = 16
