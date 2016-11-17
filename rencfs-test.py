@@ -141,8 +141,9 @@ class DecryptTest(TestCase):
         key = urandom(32)
         fs = RencFS(cls.td, key, False)
         d = fs.read(cls.tf, 1024, 0, fs.open(cls.tf, os.O_RDONLY))
-        with open(cls.tff, 'w') as f:
-            f.write(d)
+        f = os.open(cls.tff, os.O_WRONLY)
+        os.write(f, d)
+        os.close(f)
         cls.fs = RencFS(cls.td, key, True)
         cls.fs2 = RencFS(cls.td, key[16:] + key[:16], True)
 
@@ -159,8 +160,8 @@ class DecryptTest(TestCase):
     def test_read(self):
         fh = self.fs.open(self.tf, os.O_RDONLY)
         self.assertTrue(fh)
-        self.assertEqual(self.fs.read(self.tf, 1024, 0, fh), ' '*128)
-        self.assertEqual(self.fs.read(self.tf, 1, 1, fh), ' ')
+        self.assertEqual(self.fs.read(self.tf, 1024, 0, fh), b' '*128)
+        self.assertEqual(self.fs.read(self.tf, 1, 1, fh), b' ')
         self.assertEqual(len(self.fs.read(self.tf, 1, 129, fh)), 0)
 
     def test_failure(self):

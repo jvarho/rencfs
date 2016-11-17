@@ -33,7 +33,7 @@ from Crypto.Util import Counter
 from fuse import FUSE, FuseOSError, Operations
 
 
-__version__ = '0.3'
+__version__ = '0.4'
 
 BLOCK_MASK = 15
 BLOCK_SIZE = 16
@@ -92,7 +92,7 @@ class RencFS(Operations):
         aes = AES.new(key, AES.MODE_CTR, counter=ctr)
         if not offset & BLOCK_MASK:
             return aes.encrypt(data)
-        data = '\0' * (offset & BLOCK_MASK) + data
+        data = b'\0' * (offset & BLOCK_MASK) + data
         return aes.encrypt(data)[offset & BLOCK_MASK:]
 
 
@@ -152,7 +152,7 @@ class RencFS(Operations):
         raise FuseOSError(errno.EROFS)
 
     def read(self, path, length, offset, fh):
-        data = ''
+        data = b''
         h = self._getkey(fh)
         if self.decrypt:
             offset += MAC_SIZE
