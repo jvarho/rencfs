@@ -92,7 +92,7 @@ class RencFS(Operations):
         aes = AES.new(key, AES.MODE_CTR, counter=ctr)
         if not offset & BLOCK_MASK:
             return aes.encrypt(data)
-        data = '\0' * (offset & BLOCK_MASK) + data
+        data = b'\0' * (offset & BLOCK_MASK) + data
         return aes.encrypt(data)[offset & BLOCK_MASK:]
 
 
@@ -152,7 +152,7 @@ class RencFS(Operations):
         raise FuseOSError(errno.EROFS)
 
     def read(self, path, length, offset, fh):
-        data = ''
+        data = b''
         h = self._getkey(fh)
         if self.decrypt:
             offset += MAC_SIZE
