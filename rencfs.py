@@ -33,7 +33,7 @@ from Crypto.Util import Counter
 from fuse import FUSE, FuseOSError, Operations
 
 
-__version__ = '0.4'
+__version__ = '0.4.1'
 
 BLOCK_MASK = 15
 BLOCK_SIZE = 16
@@ -100,7 +100,7 @@ class RencFS(Operations):
 
     def access(self, path, mode):
         full_path = self._fullpath(path)
-        if mode in (os.W_OK, os.X_OK) or not os.access(full_path, mode):
+        if mode == os.W_OK or not os.access(full_path, mode):
             raise FuseOSError(errno.EACCES)
 
     def getattr(self, path, fh=None):
