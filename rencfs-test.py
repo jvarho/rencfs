@@ -146,6 +146,7 @@ class DecryptTest(TestCase):
         os.close(f)
         cls.fs = RencFS(cls.td, key, True)
         cls.fs2 = RencFS(cls.td, key[16:] + key[:16], True)
+        cls.fs3 = RencFS(cls.td, key[16:] + key[:16], True, False)
 
     def test_getattr(self):
         self.assertLess(
@@ -175,6 +176,11 @@ class DecryptTest(TestCase):
             0,
             fh
         )
+
+    def test_noverify(self):
+        fh = self.fs3.open(self.tf, os.O_RDONLY)
+        self.assertTrue(fh)
+        self.assertNotEqual(self.fs3.read(self.tf, 1024, 0, fh), b' '*128)
 
 
 def main():
