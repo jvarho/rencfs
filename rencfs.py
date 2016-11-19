@@ -188,10 +188,13 @@ if __name__ == '__main__': #pragma no cover
         parser.add_argument('KEY', help='master key used for encryption')
         parser.add_argument('-d', '--decrypt', action='store_true',
                             help='decrypt a copy of the encrypted filesystem')
-        parser.add_argument('-n', '--noverify', action='store_false',
+        parser.add_argument('-n', '--no-auth', action='store_false',
                             dest='verify',
                             help='skips authentication checks with --decrypt')
-        return parser.parse_args()
+        args = parser.parse_args()
+        if (not args.verify and not args.decrypt):
+            parser.error('-n/--no-auth requires -d/--decrypt')
+        return args
 
 
     args = parse_args()
