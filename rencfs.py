@@ -42,12 +42,13 @@ MAC_SIZE = 16
 VERIFY = True
 
 class RencFS(Operations):
-    def __init__(self, root, key, decrypt):
+    def __init__(self, root, key, decrypt, verify=VERIFY):
         self.root = root
         self.hmac = hmac.new(key[:16], digestmod=sha256)
         self.aes_ecb = AES.new(key[16:], AES.MODE_ECB)
         self.keys = {}
         self.decrypt = decrypt
+        self.verify = verify
 
     # Helpers
 
@@ -77,7 +78,7 @@ class RencFS(Operations):
         if self.decrypt:
             os.lseek(fh, 0, os.SEEK_SET)
             h = self.aes_ecb.decrypt(os.read(fh, MAC_SIZE))
-            if VERIFY and h != self._mac(fh, h):
+            if self.verify and h != self._mac(fh, h):
                 raise FuseOSError(errno.EPERM)
         else:
             h = self._mac(fh)
@@ -187,12 +188,13 @@ if __name__ == '__main__': #pragma no cover
         parser.add_argument('KEY', help='master key used for encryption')
         parser.add_argument('-d', '--decrypt', action='store_true',
                             help='decrypt a copy of the encrypted filesystem')
+        parser.add_argument('-n', '--noverify', action='store_false',
+                            dest='verify',
+                            help='skips authentication checks with --decrypt')
         return parser.parse_args()
 
 
-    def main(mountpoint, root, rawkey, decrypt):
-        key = sha256(rawkey).digest()
-        FUSE(RencFS(root, key, decrypt), mountpoint, nothreads=True, foreground=True)
-
     args = parse_args()
-    main(args.MOUNTPOINT, args.ROOT, args.KEY, args.decrypt)
+    key = sha256(args.KEY).digest()
+    FUSE(RencFS(args.ROOT, key, args.decrypt, args.verify),
+         args.MOUNTPOINT, nothreads=True, foreground=True)
