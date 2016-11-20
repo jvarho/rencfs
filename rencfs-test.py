@@ -36,8 +36,9 @@ class EncryptTest(TestCase):
             os.mkdir(testdir)
         except OSError:
             pass
+        cls.len = 1024 * 1024
         with open(cls.tff, 'w') as f:
-            f.write(' '*128)
+            f.write(' '*cls.len)
         try:
             os.remove(tlf)
         except OSError:
@@ -114,14 +115,12 @@ class EncryptTest(TestCase):
     def test_read(self):
         fh = self.fs.open(self.tf, os.O_RDONLY)
         self.assertTrue(fh)
-        self.assertGreater(len(self.fs.read(self.tf, 1024, 0, fh)), 128)
+        self.assertGreater(len(self.fs.read(self.tf, self.len + 1, 0, fh)), self.len)
         self.assertEqual(len(self.fs.read(self.tf, 1, 1, fh)), 1)
-        self.assertEqual(len(self.fs.read(self.tf, 1, 129, fh)), 1)
+        self.assertEqual(len(self.fs.read(self.tf, 1, self.len + 1, fh)), 1)
 
     def test_release(self):
         fh = self.fs.open(self.tf, os.O_RDONLY)
-        self.assertTrue(fh)
-        self.fs.read(self.tf, 128, 1, fh)
         self.assertTrue(fh in self.fs.keys)
         self.fs.release(self.tf, fh)
         self.assertFalse(fh in self.fs.keys)
@@ -134,15 +133,16 @@ class DecryptTest(TestCase):
         testdir = 'test1/'
         cls.tf = 'f2'
         cls.tff = testdir + cls.tf
+        cls.len = 1024 * 1024
         try:
             os.mkdir(testdir)
         except OSError:
             pass
         with open(cls.tff, 'w') as f:
-            f.write(' '*128)
+            f.write(' '*cls.len)
         key = urandom(32)
         fs = RencFSEncrypt(testdir, key)
-        d = fs.read(cls.tf, 1024, 0, fs.open(cls.tf, os.O_RDONLY))
+        d = fs.read(cls.tf, cls.len + 128, 0, fs.open(cls.tf, os.O_RDONLY))
         f = os.open(cls.tff, os.O_WRONLY)
         os.write(f, d)
         os.close(f)
@@ -157,15 +157,15 @@ class DecryptTest(TestCase):
         )
         self.assertEqual(
             self.fs.getattr(self.tf)['st_size'],
-            128
+            self.len
         )
 
     def test_read(self):
         fh = self.fs.open(self.tf, os.O_RDONLY)
         self.assertTrue(fh)
-        self.assertEqual(self.fs.read(self.tf, 1024, 0, fh), b' '*128)
+        self.assertEqual(self.fs.read(self.tf, self.len + 1024, 0, fh), b' '*self.len)
         self.assertEqual(self.fs.read(self.tf, 1, 1, fh), b' ')
-        self.assertEqual(len(self.fs.read(self.tf, 1, 129, fh)), 0)
+        self.assertEqual(len(self.fs.read(self.tf, 1, self.len + 1, fh)), 0)
 
     def test_failure(self):
         self.assertRaises(
@@ -178,7 +178,7 @@ class DecryptTest(TestCase):
     def test_noverify(self):
         fh = self.fs3.open(self.tf, os.O_RDONLY)
         self.assertTrue(fh)
-        self.assertNotEqual(self.fs3.read(self.tf, 1024, 0, fh), b' '*128)
+        self.assertNotEqual(self.fs3.read(self.tf, self.len + 1024, 0, fh), b' '*self.len)
 
 
 def main():

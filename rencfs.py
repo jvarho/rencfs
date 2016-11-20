@@ -172,7 +172,7 @@ class RencFSDecrypt(RencFSBase):
             d = os.read(fh, BUFFER_SIZE)
             if not d:
                 break
-            pos, d = len(d), self._dec(h, pos, d)
+            pos, d = pos + len(d), self._dec(h, pos, d)
             hmac.update(d)
         return hmac.digest()[:MAC_SIZE]
 
