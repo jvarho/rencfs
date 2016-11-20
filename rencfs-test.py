@@ -166,15 +166,11 @@ class DecryptTest(TestCase):
         self.assertEqual(len(self.fs.read(self.tf, 1, 129, fh)), 0)
 
     def test_failure(self):
-        fh = self.fs2.open(self.tf, os.O_RDONLY)
-        self.assertTrue(fh)
         self.assertRaises(
             FuseOSError,
-            self.fs2.read,
+            self.fs2.open,
             self.tf,
-            1024,
-            0,
-            fh
+            os.O_RDONLY
         )
 
     def test_noverify(self):

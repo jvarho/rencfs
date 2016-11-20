@@ -112,7 +112,9 @@ class RencFSBase(Operations):
 
     def open(self, path, flags):
         full_path = self._fullpath(path)
-        return os.open(full_path, flags)
+        fh = os.open(full_path, flags)
+        self.keys[fh] = self._getkey(fh)
+        return fh
 
     def create(self, path, mode, fi=None):
         raise FuseOSError(errno.EROFS)
@@ -124,7 +126,7 @@ class RencFSBase(Operations):
 
 class RencFSEncrypt(RencFSBase):
 
-    def _mac(self, fh, h=''):
+    def _mac(self, fh):
         hmac = self.hmac.copy()
         os.lseek(fh, 0, os.SEEK_SET)
         while True:
@@ -135,11 +137,7 @@ class RencFSEncrypt(RencFSBase):
         return hmac.digest()[:MAC_SIZE]
 
     def _getkey(self, fh):
-        if fh in self.keys:
-            return self.keys[fh]
-        h = self._mac(fh)
-        self.keys[fh] = h
-        return h
+        return self._mac(fh)
 
     def getattr(self, path, fh=None):
         st = super(RencFSEncrypt, self).getattr(path)
@@ -148,7 +146,7 @@ class RencFSEncrypt(RencFSBase):
 
     def read(self, path, length, offset, fh):
         data = b''
-        h = self._getkey(fh)
+        h = self.keys[fh]
         if offset < MAC_SIZE:
             data = self.aes_ecb.encrypt(h)[offset:offset+length]
             length -= MAC_SIZE - offset
@@ -167,7 +165,7 @@ class RencFSDecrypt(RencFSBase):
         super(RencFSDecrypt, self).__init__(root, key)
         self.verify = verify
 
-    def _mac(self, fh, h=''):
+    def _mac(self, fh, h):
         pos, hmac = MAC_SIZE, self.hmac.copy()
         os.lseek(fh, pos, os.SEEK_SET)
         while True:
@@ -179,13 +177,10 @@ class RencFSDecrypt(RencFSBase):
         return hmac.digest()[:MAC_SIZE]
 
     def _getkey(self, fh):
-        if fh in self.keys:
-            return self.keys[fh]
         os.lseek(fh, 0, os.SEEK_SET)
         h = self.aes_ecb.decrypt(os.read(fh, MAC_SIZE))
         if self.verify and h != self._mac(fh, h):
             raise FuseOSError(errno.EPERM)
-        self.keys[fh] = h
         return h
 
     def _dec(self, key, offset, data):
@@ -198,7 +193,7 @@ class RencFSDecrypt(RencFSBase):
 
     def read(self, path, length, offset, fh):
         data = b''
-        h = self._getkey(fh)
+        h = self.keys[fh]
         offset += MAC_SIZE
         os.lseek(fh, offset, os.SEEK_SET)
         data += self._dec(h, offset, os.read(fh, length))
