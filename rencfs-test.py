@@ -19,7 +19,7 @@ from os import urandom, R_OK, W_OK, X_OK
 from unittest import defaultTestLoader, TestCase, TestSuite, TextTestRunner
 from fuse import FuseOSError
 
-from rencfs import RencFS
+from rencfs import RencFSEncrypt, RencFSDecrypt
 
 
 class EncryptTest(TestCase):
@@ -31,7 +31,7 @@ class EncryptTest(TestCase):
         cls.tff = cls.td + cls.tf
         cls.tl = 'l2'
         cls.tlf = cls.td + cls.tl
-        cls.fs = RencFS(cls.td, urandom(32), False)
+        cls.fs = RencFSEncrypt(cls.td, urandom(32))
         try:
             os.mkdir(cls.td)
         except OSError:
@@ -139,14 +139,14 @@ class DecryptTest(TestCase):
         with open(cls.tff, 'w') as f:
             f.write(' '*128)
         key = urandom(32)
-        fs = RencFS(cls.td, key, False)
+        fs = RencFSEncrypt(cls.td, key)
         d = fs.read(cls.tf, 1024, 0, fs.open(cls.tf, os.O_RDONLY))
         f = os.open(cls.tff, os.O_WRONLY)
         os.write(f, d)
         os.close(f)
-        cls.fs = RencFS(cls.td, key, True)
-        cls.fs2 = RencFS(cls.td, key[16:] + key[:16], True)
-        cls.fs3 = RencFS(cls.td, key[16:] + key[:16], True, False)
+        cls.fs = RencFSDecrypt(cls.td, key)
+        cls.fs2 = RencFSDecrypt(cls.td, key[16:] + key[:16])
+        cls.fs3 = RencFSDecrypt(cls.td, key[16:] + key[:16], False)
 
     def test_getattr(self):
         self.assertLess(
