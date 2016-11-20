@@ -26,23 +26,23 @@ class EncryptTest(TestCase):
 
     @classmethod
     def setUpClass(cls):
-        cls.td = 'test1/'
+        testdir = 'test1/'
         cls.tf = 'f2'
-        cls.tff = cls.td + cls.tf
+        cls.tff = testdir + cls.tf
         cls.tl = 'l2'
-        cls.tlf = cls.td + cls.tl
-        cls.fs = RencFSEncrypt(cls.td, urandom(32))
+        tlf = testdir + cls.tl
+        cls.fs = RencFSEncrypt(testdir, urandom(32))
         try:
-            os.mkdir(cls.td)
+            os.mkdir(testdir)
         except OSError:
             pass
         with open(cls.tff, 'w') as f:
             f.write(' '*128)
         try:
-            os.remove(cls.tlf)
+            os.remove(tlf)
         except OSError:
             pass
-        os.symlink(cls.tff, cls.tlf)
+        os.symlink(cls.tff, tlf)
 
     def test_access(self):
         self.assertFalse(self.fs.access(self.tf, R_OK))
@@ -131,22 +131,24 @@ class DecryptTest(TestCase):
 
     @classmethod
     def setUpClass(cls):
-        cls.td = 'test1/'
+        testdir = 'test1/'
         cls.tf = 'f2'
-        cls.tff = cls.td + cls.tf
-        cls.tl = 'l2'
-        cls.tlf = cls.td + cls.tl
+        cls.tff = testdir + cls.tf
+        try:
+            os.mkdir(testdir)
+        except OSError:
+            pass
         with open(cls.tff, 'w') as f:
             f.write(' '*128)
         key = urandom(32)
-        fs = RencFSEncrypt(cls.td, key)
+        fs = RencFSEncrypt(testdir, key)
         d = fs.read(cls.tf, 1024, 0, fs.open(cls.tf, os.O_RDONLY))
         f = os.open(cls.tff, os.O_WRONLY)
         os.write(f, d)
         os.close(f)
-        cls.fs = RencFSDecrypt(cls.td, key)
-        cls.fs2 = RencFSDecrypt(cls.td, key[16:] + key[:16])
-        cls.fs3 = RencFSDecrypt(cls.td, key[16:] + key[:16], False)
+        cls.fs = RencFSDecrypt(testdir, key)
+        cls.fs2 = RencFSDecrypt(testdir, key[16:] + key[:16])
+        cls.fs3 = RencFSDecrypt(testdir, key[16:] + key[:16], False)
 
     def test_getattr(self):
         self.assertLess(
@@ -181,8 +183,8 @@ class DecryptTest(TestCase):
 
 def main():
     tests = TestSuite()
-    tests.addTest(defaultTestLoader.loadTestsFromTestCase(EncryptTest))
     tests.addTest(defaultTestLoader.loadTestsFromTestCase(DecryptTest))
+    tests.addTest(defaultTestLoader.loadTestsFromTestCase(EncryptTest))
     TextTestRunner().run(tests)
 
 
