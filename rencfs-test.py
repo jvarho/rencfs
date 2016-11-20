@@ -19,30 +19,31 @@ from os import urandom, R_OK, W_OK, X_OK
 from unittest import defaultTestLoader, TestCase, TestSuite, TextTestRunner
 from fuse import FuseOSError
 
-from rencfs import RencFS
+from rencfs import RencFSEncrypt, RencFSDecrypt
 
 
 class EncryptTest(TestCase):
 
     @classmethod
     def setUpClass(cls):
-        cls.td = 'test1/'
+        testdir = 'test1/'
         cls.tf = 'f2'
-        cls.tff = cls.td + cls.tf
+        cls.tff = testdir + cls.tf
         cls.tl = 'l2'
-        cls.tlf = cls.td + cls.tl
-        cls.fs = RencFS(cls.td, urandom(32), False)
+        tlf = testdir + cls.tl
+        cls.fs = RencFSEncrypt(testdir, urandom(32))
         try:
-            os.mkdir(cls.td)
+            os.mkdir(testdir)
         except OSError:
             pass
+        cls.len = 1024 * 1024
         with open(cls.tff, 'w') as f:
-            f.write(' '*128)
+            f.write(' '*cls.len)
         try:
-            os.remove(cls.tlf)
+            os.remove(tlf)
         except OSError:
             pass
-        os.symlink(cls.tff, cls.tlf)
+        os.symlink(cls.tff, tlf)
 
     def test_access(self):
         self.assertFalse(self.fs.access(self.tf, R_OK))
@@ -114,14 +115,12 @@ class EncryptTest(TestCase):
     def test_read(self):
         fh = self.fs.open(self.tf, os.O_RDONLY)
         self.assertTrue(fh)
-        self.assertGreater(len(self.fs.read(self.tf, 1024, 0, fh)), 128)
+        self.assertGreater(len(self.fs.read(self.tf, self.len + 1, 0, fh)), self.len)
         self.assertEqual(len(self.fs.read(self.tf, 1, 1, fh)), 1)
-        self.assertEqual(len(self.fs.read(self.tf, 1, 129, fh)), 1)
+        self.assertEqual(len(self.fs.read(self.tf, 1, self.len + 1, fh)), 1)
 
     def test_release(self):
         fh = self.fs.open(self.tf, os.O_RDONLY)
-        self.assertTrue(fh)
-        self.fs.read(self.tf, 128, 1, fh)
         self.assertTrue(fh in self.fs.keys)
         self.fs.release(self.tf, fh)
         self.assertFalse(fh in self.fs.keys)
@@ -131,22 +130,25 @@ class DecryptTest(TestCase):
 
     @classmethod
     def setUpClass(cls):
-        cls.td = 'test1/'
+        testdir = 'test1/'
         cls.tf = 'f2'
-        cls.tff = cls.td + cls.tf
-        cls.tl = 'l2'
-        cls.tlf = cls.td + cls.tl
+        cls.tff = testdir + cls.tf
+        cls.len = 1024 * 1024
+        try:
+            os.mkdir(testdir)
+        except OSError:
+            pass
         with open(cls.tff, 'w') as f:
-            f.write(' '*128)
+            f.write(' '*cls.len)
         key = urandom(32)
-        fs = RencFS(cls.td, key, False)
-        d = fs.read(cls.tf, 1024, 0, fs.open(cls.tf, os.O_RDONLY))
+        fs = RencFSEncrypt(testdir, key)
+        d = fs.read(cls.tf, cls.len + 128, 0, fs.open(cls.tf, os.O_RDONLY))
         f = os.open(cls.tff, os.O_WRONLY)
         os.write(f, d)
         os.close(f)
-        cls.fs = RencFS(cls.td, key, True)
-        cls.fs2 = RencFS(cls.td, key[16:] + key[:16], True)
-        cls.fs3 = RencFS(cls.td, key[16:] + key[:16], True, False)
+        cls.fs = RencFSDecrypt(testdir, key)
+        cls.fs2 = RencFSDecrypt(testdir, key[16:] + key[:16])
+        cls.fs3 = RencFSDecrypt(testdir, key[16:] + key[:16], False)
 
     def test_getattr(self):
         self.assertLess(
@@ -155,38 +157,34 @@ class DecryptTest(TestCase):
         )
         self.assertEqual(
             self.fs.getattr(self.tf)['st_size'],
-            128
+            self.len
         )
 
     def test_read(self):
         fh = self.fs.open(self.tf, os.O_RDONLY)
         self.assertTrue(fh)
-        self.assertEqual(self.fs.read(self.tf, 1024, 0, fh), b' '*128)
+        self.assertEqual(self.fs.read(self.tf, self.len + 1024, 0, fh), b' '*self.len)
         self.assertEqual(self.fs.read(self.tf, 1, 1, fh), b' ')
-        self.assertEqual(len(self.fs.read(self.tf, 1, 129, fh)), 0)
+        self.assertEqual(len(self.fs.read(self.tf, 1, self.len + 1, fh)), 0)
 
     def test_failure(self):
-        fh = self.fs2.open(self.tf, os.O_RDONLY)
-        self.assertTrue(fh)
         self.assertRaises(
             FuseOSError,
-            self.fs2.read,
+            self.fs2.open,
             self.tf,
-            1024,
-            0,
-            fh
+            os.O_RDONLY
         )
 
     def test_noverify(self):
         fh = self.fs3.open(self.tf, os.O_RDONLY)
         self.assertTrue(fh)
-        self.assertNotEqual(self.fs3.read(self.tf, 1024, 0, fh), b' '*128)
+        self.assertNotEqual(self.fs3.read(self.tf, self.len + 1024, 0, fh), b' '*self.len)
 
 
 def main():
     tests = TestSuite()
-    tests.addTest(defaultTestLoader.loadTestsFromTestCase(EncryptTest))
     tests.addTest(defaultTestLoader.loadTestsFromTestCase(DecryptTest))
+    tests.addTest(defaultTestLoader.loadTestsFromTestCase(EncryptTest))
     TextTestRunner().run(tests)
 
 

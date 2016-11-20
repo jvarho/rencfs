@@ -33,7 +33,7 @@ from Crypto.Util import Counter
 from fuse import FUSE, FuseOSError, Operations
 
 
-__version__ = '0.4.1'
+__version__ = '0.5'
 
 BLOCK_MASK = 15
 BLOCK_SIZE = 16
@@ -41,14 +41,12 @@ BUFFER_SIZE = 1024*16
 MAC_SIZE = 16
 VERIFY = True
 
-class RencFS(Operations):
-    def __init__(self, root, key, decrypt, verify=VERIFY):
+class RencFSBase(Operations):
+    def __init__(self, root, key):
         self.root = root
         self.hmac = hmac.new(key[:16], digestmod=sha256)
         self.aes_ecb = AES.new(key[16:], AES.MODE_ECB)
         self.keys = {}
-        self.decrypt = decrypt
-        self.verify = verify
 
     # Helpers
 
@@ -58,36 +56,7 @@ class RencFS(Operations):
         path = os.path.join(self.root, partial)
         return path
 
-    def _mac(self, fh, h=''):
-        pos, hmac = 0, self.hmac.copy()
-        if self.decrypt:
-            pos = MAC_SIZE
-        os.lseek(fh, pos, os.SEEK_SET)
-        while True:
-            d = os.read(fh, BUFFER_SIZE)
-            if not d:
-                break
-            if self.decrypt:
-                pos, d = len(d), self._enc(h, pos, d)
-            hmac.update(d)
-        return hmac.digest()[:MAC_SIZE]
-
-    def _getkey(self, fh):
-        if fh in self.keys:
-            return self.keys[fh]
-        if self.decrypt:
-            os.lseek(fh, 0, os.SEEK_SET)
-            h = self.aes_ecb.decrypt(os.read(fh, MAC_SIZE))
-            if self.verify and h != self._mac(fh, h):
-                raise FuseOSError(errno.EPERM)
-        else:
-            h = self._mac(fh)
-        self.keys[fh] = h
-        return h
-
     def _enc(self, key, offset, data):
-        if self.decrypt:
-            offset -= MAC_SIZE
         index = offset // BLOCK_SIZE
         ctr = Counter.new(128, initial_value=index)
         aes = AES.new(key, AES.MODE_CTR, counter=ctr)
@@ -111,10 +80,6 @@ class RencFS(Operations):
             'st_atime', 'st_ctime', 'st_gid', 'st_mode',
             'st_mtime', 'st_nlink', 'st_size', 'st_uid'
         ))
-        if self.decrypt:
-            st['st_size'] -= MAC_SIZE
-        else:
-            st['st_size'] += MAC_SIZE
         return st
 
     def readdir(self, path, fh):
@@ -147,17 +112,42 @@ class RencFS(Operations):
 
     def open(self, path, flags):
         full_path = self._fullpath(path)
-        return os.open(full_path, flags)
+        fh = os.open(full_path, flags)
+        self.keys[fh] = self._getkey(fh)
+        return fh
 
     def create(self, path, mode, fi=None):
         raise FuseOSError(errno.EROFS)
 
+    def release(self, path, fh):
+        self.keys.pop(fh, None)
+        return os.close(fh)
+
+
+class RencFSEncrypt(RencFSBase):
+
+    def _mac(self, fh):
+        hmac = self.hmac.copy()
+        os.lseek(fh, 0, os.SEEK_SET)
+        while True:
+            d = os.read(fh, BUFFER_SIZE)
+            if not d:
+                break
+            hmac.update(d)
+        return hmac.digest()[:MAC_SIZE]
+
+    def _getkey(self, fh):
+        return self._mac(fh)
+
+    def getattr(self, path, fh=None):
+        st = super(RencFSEncrypt, self).getattr(path)
+        st['st_size'] += MAC_SIZE
+        return st
+
     def read(self, path, length, offset, fh):
         data = b''
-        h = self._getkey(fh)
-        if self.decrypt:
-            offset += MAC_SIZE
-        elif offset < MAC_SIZE:
+        h = self.keys[fh]
+        if offset < MAC_SIZE:
             data = self.aes_ecb.encrypt(h)[offset:offset+length]
             length -= MAC_SIZE - offset
             offset = 0
@@ -168,9 +158,46 @@ class RencFS(Operations):
             data += self._enc(h, offset, os.read(fh, length))
         return data
 
-    def release(self, path, fh):
-        self.keys.pop(fh, None)
-        return os.close(fh)
+
+class RencFSDecrypt(RencFSBase):
+
+    def __init__(self, root, key, verify=VERIFY):
+        super(RencFSDecrypt, self).__init__(root, key)
+        self.verify = verify
+
+    def _mac(self, fh, h):
+        pos, hmac = MAC_SIZE, self.hmac.copy()
+        os.lseek(fh, pos, os.SEEK_SET)
+        while True:
+            d = os.read(fh, BUFFER_SIZE)
+            if not d:
+                break
+            pos, d = pos + len(d), self._dec(h, pos, d)
+            hmac.update(d)
+        return hmac.digest()[:MAC_SIZE]
+
+    def _getkey(self, fh):
+        os.lseek(fh, 0, os.SEEK_SET)
+        h = self.aes_ecb.decrypt(os.read(fh, MAC_SIZE))
+        if self.verify and h != self._mac(fh, h):
+            raise FuseOSError(errno.EPERM)
+        return h
+
+    def _dec(self, key, offset, data):
+        return super(RencFSDecrypt, self)._enc(key, offset - MAC_SIZE, data)
+
+    def getattr(self, path, fh=None):
+        st = super(RencFSDecrypt, self).getattr(path)
+        st['st_size'] -= MAC_SIZE
+        return st
+
+    def read(self, path, length, offset, fh):
+        data = b''
+        h = self.keys[fh]
+        offset += MAC_SIZE
+        os.lseek(fh, offset, os.SEEK_SET)
+        data += self._dec(h, offset, os.read(fh, length))
+        return data
 
 
 if __name__ == '__main__': #pragma no cover
@@ -199,5 +226,8 @@ if __name__ == '__main__': #pragma no cover
 
     args = parse_args()
     key = sha256(args.KEY).digest()
-    FUSE(RencFS(args.ROOT, key, args.decrypt, args.verify),
-         args.MOUNTPOINT, nothreads=True, foreground=True)
+    if args.decrypt:
+        fs = RencFSDecrypt(args.ROOT, key, args.verify)
+    else:
+        fs = RencFSEncrypt(args.ROOT, key)
+    FUSE(fs, args.MOUNTPOINT, nothreads=True, foreground=True)
