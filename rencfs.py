@@ -87,7 +87,7 @@ class RencFSBase(Operations):
         ))
         return st
 
-    def readdir(self, path, fh):
+    def readdir(self, path, fh=None):
         full_path = self._fullpath(path)
         dirents = ['.', '..']
         try:

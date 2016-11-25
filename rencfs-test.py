@@ -68,20 +68,19 @@ class EncryptTest(TestCase):
 
     def test_readdir(self):
         self.assertGreaterEqual(
-            len(list(self.fs.readdir('/', 0))),
+            len(list(self.fs.readdir('/'))),
             4
         )
+        self.assertIn(self.tf, list(self.fs.readdir('/')))
         self.assertRaises(
             FuseOSError,
-            lambda a, b: list(self.fs.readdir(a, b)),
+            lambda a: list(self.fs.readdir(a)),
             '__',
-            0
         )
         self.assertRaises(
             FuseOSError,
-            lambda a, b: list(self.fs.readdir(a, b)),
+            lambda a: list(self.fs.readdir(a)),
             self.tf,
-            0
         )
 
     def test_readlink(self):
@@ -148,7 +147,7 @@ class DecryptTest(TestCase):
         os.close(f)
         cls.fs = RencFSDecrypt(testdir, key)
         cls.fs2 = RencFSDecrypt(testdir, key[16:] + key[:16])
-        cls.fs3 = RencFSDecrypt(testdir, key[16:] + key[:16], False)
+        cls.fs3 = RencFSDecrypt(testdir, key[16:] + key[:16], verify=False)
 
     def test_getattr(self):
         self.assertLess(
