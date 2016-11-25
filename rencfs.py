@@ -65,6 +65,11 @@ class RencFSBase(Operations):
         data = b'\0' * (offset & BLOCK_MASK) + data
         return aes.encrypt(data)[offset & BLOCK_MASK:]
 
+    def _read(self, fh, size, seek=None):
+        if seek is not None:
+            os.lseek(fh, seek, os.SEEK_SET)
+        return os.read(fh, size)
+
 
     # Filesystem methods
 
@@ -128,12 +133,10 @@ class RencFSEncrypt(RencFSBase):
 
     def _mac(self, fh):
         hmac = self.hmac.copy()
-        os.lseek(fh, 0, os.SEEK_SET)
-        while True:
-            d = os.read(fh, BUFFER_SIZE)
-            if not d:
-                break
+        d = self._read(fh, BUFFER_SIZE, 0)
+        while d:
             hmac.update(d)
+            d = self._read(fh, BUFFER_SIZE)
         return hmac.digest()[:MAC_SIZE]
 
     def _getkey(self, fh):
@@ -154,8 +157,7 @@ class RencFSEncrypt(RencFSBase):
         else:
             offset -= MAC_SIZE
         if length > 0:
-            os.lseek(fh, offset, os.SEEK_SET)
-            data += self._enc(h, offset, os.read(fh, length))
+            data += self._enc(h, offset, self._read(fh, length, offset))
         return data
 
 
@@ -167,18 +169,15 @@ class RencFSDecrypt(RencFSBase):
 
     def _mac(self, fh, h):
         pos, hmac = MAC_SIZE, self.hmac.copy()
-        os.lseek(fh, pos, os.SEEK_SET)
-        while True:
-            d = os.read(fh, BUFFER_SIZE)
-            if not d:
-                break
-            pos, d = pos + len(d), self._dec(h, pos, d)
-            hmac.update(d)
+
+        d = self._read(fh, BUFFER_SIZE, pos)
+        while d:
+            hmac.update(self._dec(h, pos, d))
+            pos, d = pos + len(d), self._read(fh, BUFFER_SIZE)
         return hmac.digest()[:MAC_SIZE]
 
     def _getkey(self, fh):
-        os.lseek(fh, 0, os.SEEK_SET)
-        h = self.aes_ecb.decrypt(os.read(fh, MAC_SIZE))
+        h = self.aes_ecb.decrypt(self._read(fh, MAC_SIZE, 0))
         if self.verify and h != self._mac(fh, h):
             raise FuseOSError(errno.EPERM)
         return h
@@ -192,12 +191,9 @@ class RencFSDecrypt(RencFSBase):
         return st
 
     def read(self, path, length, offset, fh):
-        data = b''
         h = self.keys[fh]
         offset += MAC_SIZE
-        os.lseek(fh, offset, os.SEEK_SET)
-        data += self._dec(h, offset, os.read(fh, length))
-        return data
+        return self._dec(h, offset, self._read(fh, length, offset))
 
 
 if __name__ == '__main__': #pragma no cover
