@@ -21,29 +21,29 @@ from fuse import FuseOSError
 
 from rencfs import RencFSEncrypt, RencFSDecrypt
 
-
-class EncryptTest(TestCase):
+class RencFSTest(TestCase):
+    td = 'test1/'
+    tf = 'f2'
+    tl = 'l2'
+    len = 1024 * 1024
+    key = urandom(32)
+    key2 = urandom(32)
 
     @classmethod
     def setUpClass(cls):
-        testdir = 'test1/'
-        cls.tf = 'f2'
-        cls.tff = testdir + cls.tf
-        cls.tl = 'l2'
-        tlf = testdir + cls.tl
-        cls.fs = RencFSEncrypt(testdir, urandom(32))
+        cls.tfp = cls.td + cls.tf
         try:
-            os.mkdir(testdir)
+            os.mkdir(cls.td)
         except OSError:
             pass
-        cls.len = 1024 * 1024
-        with open(cls.tff, 'w') as f:
-            f.write(' '*cls.len)
+        with open(cls.tfp, 'wb') as f:
+            f.write(b' '*cls.len)
+        tlf = cls.td + cls.tl
         try:
             os.remove(tlf)
         except OSError:
             pass
-        os.symlink(cls.tff, tlf)
+        os.symlink(cls.tfp, tlf)
 
     def test_access(self):
         self.assertFalse(self.fs.access(self.tf, R_OK))
@@ -60,28 +60,21 @@ class EncryptTest(TestCase):
             W_OK
         )
 
-    def test_getattr(self):
-        self.assertGreater(
-            self.fs.getattr(self.tf)['st_size'],
-            os.lstat(self.tff).st_size
-        )
-
     def test_readdir(self):
         self.assertGreaterEqual(
-            len(list(self.fs.readdir('/', 0))),
+            len(list(self.fs.readdir('/'))),
             4
         )
+        self.assertIn(self.tf, list(self.fs.readdir('/')))
         self.assertRaises(
             FuseOSError,
-            lambda a, b: list(self.fs.readdir(a, b)),
+            lambda a: list(self.fs.readdir(a)),
             '__',
-            0
         )
         self.assertRaises(
             FuseOSError,
-            lambda a, b: list(self.fs.readdir(a, b)),
+            lambda a: list(self.fs.readdir(a)),
             self.tf,
-            0
         )
 
     def test_readlink(self):
@@ -112,6 +105,25 @@ class EncryptTest(TestCase):
             os.O_RDONLY
         )
 
+    def test_release(self):
+        fh = self.fs.open(self.tf, os.O_RDONLY)
+        self.assertIn(fh, self.fs.keys)
+        self.fs.release(self.tf, fh)
+        self.assertNotIn(fh, self.fs.keys)
+
+
+class EncryptTest(RencFSTest):
+    @classmethod
+    def setUpClass(cls):
+        super(EncryptTest, cls).setUpClass()
+        cls.fs = RencFSEncrypt(cls.td, cls.key)
+
+    def test_getattr(self):
+        self.assertGreater(
+            self.fs.getattr(self.tf)['st_size'],
+            os.lstat(self.tfp).st_size
+        )
+
     def test_read(self):
         fh = self.fs.open(self.tf, os.O_RDONLY)
         self.assertTrue(fh)
@@ -119,41 +131,23 @@ class EncryptTest(TestCase):
         self.assertEqual(len(self.fs.read(self.tf, 1, 1, fh)), 1)
         self.assertEqual(len(self.fs.read(self.tf, 1, self.len + 1, fh)), 1)
 
-    def test_release(self):
-        fh = self.fs.open(self.tf, os.O_RDONLY)
-        self.assertTrue(fh in self.fs.keys)
-        self.fs.release(self.tf, fh)
-        self.assertFalse(fh in self.fs.keys)
 
-
-class DecryptTest(TestCase):
-
+class DecryptTest(RencFSTest):
     @classmethod
     def setUpClass(cls):
-        testdir = 'test1/'
-        cls.tf = 'f2'
-        cls.tff = testdir + cls.tf
-        cls.len = 1024 * 1024
-        try:
-            os.mkdir(testdir)
-        except OSError:
-            pass
-        with open(cls.tff, 'w') as f:
-            f.write(' '*cls.len)
-        key = urandom(32)
-        fs = RencFSEncrypt(testdir, key)
+        super(DecryptTest, cls).setUpClass()
+        fs = RencFSEncrypt(cls.td, cls.key)
         d = fs.read(cls.tf, cls.len + 128, 0, fs.open(cls.tf, os.O_RDONLY))
-        f = os.open(cls.tff, os.O_WRONLY)
-        os.write(f, d)
-        os.close(f)
-        cls.fs = RencFSDecrypt(testdir, key)
-        cls.fs2 = RencFSDecrypt(testdir, key[16:] + key[:16])
-        cls.fs3 = RencFSDecrypt(testdir, key[16:] + key[:16], False)
+        with open(cls.tfp, 'wb') as f:
+            f.write(d)
+        cls.fs = RencFSDecrypt(cls.td, cls.key)
+        cls.fs2 = RencFSDecrypt(cls.td, cls.key2)
+        cls.fs3 = RencFSDecrypt(cls.td, cls.key2, verify=False)
 
     def test_getattr(self):
         self.assertLess(
             self.fs.getattr(self.tf)['st_size'],
-            os.lstat(self.tff).st_size
+            os.lstat(self.tfp).st_size
         )
         self.assertEqual(
             self.fs.getattr(self.tf)['st_size'],

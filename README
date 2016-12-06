@@ -33,7 +33,7 @@ With the -d option you can do the reverse.
 Algorithms
 ---
 
-Uses AES-128 in SIV mode using HMAC-SHA256 as a 128-bit MAC.
+Uses AES-128 in CTR mode with HMAC-SHA256 as a 128-bit MAC and KDF.
 
 
 Caveats
