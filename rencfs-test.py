@@ -93,6 +93,11 @@ class RencFSTest(TestCase):
             self.fs.statfs('/')['f_files'],
             2
         )
+        self.assertRaises(
+            FuseOSError,
+            self.fs.statfs,
+            '__'
+        )
 
     def test_utimens(self):
         self.assertRaises(
