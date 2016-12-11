@@ -98,7 +98,10 @@ class RencFSBase(Operations):
             yield r
 
     def readlink(self, path):
-        pathname = os.readlink(self._fullpath(path))
+        try:
+            pathname = os.readlink(self._fullpath(path))
+        except OSError as e:
+            raise FuseOSError(e.errno)
         return os.path.relpath(pathname, self.root)
 
     def statfs(self, path):

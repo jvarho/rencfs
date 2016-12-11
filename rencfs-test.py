@@ -82,6 +82,11 @@ class RencFSTest(TestCase):
             self.fs.readlink(self.tl),
             self.tf
         )
+        self.assertRaises(
+            FuseOSError,
+            self.fs.readlink,
+            '__'
+        )
 
     def test_statfs(self):
         self.assertGreaterEqual(
