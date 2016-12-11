@@ -33,7 +33,7 @@ from Crypto.Util import Counter
 from fuse import FUSE, FuseOSError, Operations
 
 
-__version__ = '0.5'
+__version__ = '0.6'
 
 BLOCK_MASK = 15
 BLOCK_SIZE = 16
@@ -65,6 +65,12 @@ class RencFSBase(Operations):
         data = b'\0' * (offset & BLOCK_MASK) + data
         return aes.encrypt(data)[offset & BLOCK_MASK:]
 
+    def _key(self, fh):
+        if fh not in self.keys:
+            raise FuseOSError(errno.EBADF)
+        return self.keys[fh]
+            
+
     def _read(self, fh, size, seek=None):
         if seek is not None:
             os.lseek(fh, seek, os.SEEK_SET)
@@ -80,7 +86,10 @@ class RencFSBase(Operations):
 
     def getattr(self, path, fh=None):
         full_path = self._fullpath(path)
-        st = os.lstat(full_path)
+        try:
+            st = os.lstat(full_path)
+        except OSError as e:
+            raise FuseOSError(e.errno)
         st = dict((key, getattr(st, key)) for key in (
             'st_atime', 'st_ctime', 'st_gid', 'st_mode',
             'st_mtime', 'st_nlink', 'st_size', 'st_uid'
@@ -98,12 +107,18 @@ class RencFSBase(Operations):
             yield r
 
     def readlink(self, path):
-        pathname = os.readlink(self._fullpath(path))
+        try:
+            pathname = os.readlink(self._fullpath(path))
+        except OSError as e:
+            raise FuseOSError(e.errno)
         return os.path.relpath(pathname, self.root)
 
     def statfs(self, path):
         full_path = self._fullpath(path)
-        stv = os.statvfs(full_path)
+        try:
+            stv = os.statvfs(full_path)
+        except OSError as e:
+            raise FuseOSError(e.errno)
         return dict((key, getattr(stv, key)) for key in (
             'f_bavail', 'f_bfree', 'f_blocks', 'f_bsize', 'f_favail',
             'f_ffree', 'f_files', 'f_flag', 'f_frsize', 'f_namemax'
@@ -117,7 +132,10 @@ class RencFSBase(Operations):
 
     def open(self, path, flags):
         full_path = self._fullpath(path)
-        fh = os.open(full_path, flags)
+        try:
+            fh = os.open(full_path, flags)
+        except OSError as e:
+            raise FuseOSError(e.errno)
         self.keys[fh] = self._getkey(fh)
         return fh
 
@@ -126,7 +144,10 @@ class RencFSBase(Operations):
 
     def release(self, path, fh):
         self.keys.pop(fh, None)
-        return os.close(fh)
+        try:
+            return os.close(fh)
+        except OSError as e:
+            raise FuseOSError(e.errno)
 
 
 class RencFSEncrypt(RencFSBase):
@@ -149,7 +170,7 @@ class RencFSEncrypt(RencFSBase):
 
     def read(self, path, length, offset, fh):
         data = b''
-        h = self.keys[fh]
+        h = self._key(fh)
         if offset < MAC_SIZE:
             data = self.aes_ecb.encrypt(h)[offset:offset+length]
             length -= MAC_SIZE - offset
@@ -191,7 +212,7 @@ class RencFSDecrypt(RencFSBase):
         return st
 
     def read(self, path, length, offset, fh):
-        h = self.keys[fh]
+        h = self._key(fh)
         offset += MAC_SIZE
         return self._dec(h, offset, self._read(fh, length, offset))
 

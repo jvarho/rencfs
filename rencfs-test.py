@@ -82,11 +82,21 @@ class RencFSTest(TestCase):
             self.fs.readlink(self.tl),
             self.tf
         )
+        self.assertRaises(
+            FuseOSError,
+            self.fs.readlink,
+            '__'
+        )
 
     def test_statfs(self):
         self.assertGreaterEqual(
             self.fs.statfs('/')['f_files'],
             2
+        )
+        self.assertRaises(
+            FuseOSError,
+            self.fs.statfs,
+            '__'
         )
 
     def test_utimens(self):
@@ -97,6 +107,13 @@ class RencFSTest(TestCase):
             1
         )
 
+    def test_getattr_failure(self):
+        self.assertRaises(
+            FuseOSError,
+            self.fs.getattr,
+            '__'
+        )
+
     def test_create(self):
         self.assertRaises(
             FuseOSError,
@@ -105,11 +122,35 @@ class RencFSTest(TestCase):
             os.O_RDONLY
         )
 
+    def test_open(self):
+        self.assertRaises(
+            FuseOSError,
+            self.fs.open,
+            '__',
+            os.O_RDONLY
+        )
+
+    def test_read_notopen(self):
+        self.assertRaises(
+            FuseOSError,
+            self.fs.read,
+            '__',
+            1,
+            0,
+            0
+        )
+
     def test_release(self):
         fh = self.fs.open(self.tf, os.O_RDONLY)
         self.assertIn(fh, self.fs.keys)
         self.fs.release(self.tf, fh)
         self.assertNotIn(fh, self.fs.keys)
+        self.assertRaises(
+            FuseOSError,
+            self.fs.release,
+            self.tf,
+            fh
+        )
 
 
 class EncryptTest(RencFSTest):
