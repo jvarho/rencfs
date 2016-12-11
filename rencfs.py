@@ -117,7 +117,10 @@ class RencFSBase(Operations):
 
     def open(self, path, flags):
         full_path = self._fullpath(path)
-        fh = os.open(full_path, flags)
+        try:
+            fh = os.open(full_path, flags)
+        except OSError as e:
+            raise FuseOSError(e.errno)
         self.keys[fh] = self._getkey(fh)
         return fh
 
