@@ -130,6 +130,16 @@ class RencFSTest(TestCase):
             os.O_RDONLY
         )
 
+    def test_read_notopen(self):
+        self.assertRaises(
+            FuseOSError,
+            self.fs.read,
+            '__',
+            1,
+            0,
+            0
+        )
+
     def test_release(self):
         fh = self.fs.open(self.tf, os.O_RDONLY)
         self.assertIn(fh, self.fs.keys)

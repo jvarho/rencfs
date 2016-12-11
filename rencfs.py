@@ -65,6 +65,12 @@ class RencFSBase(Operations):
         data = b'\0' * (offset & BLOCK_MASK) + data
         return aes.encrypt(data)[offset & BLOCK_MASK:]
 
+    def _key(self, fh):
+        if fh not in self.keys:
+            raise FuseOSError(errno.EBADF)
+        return self.keys[fh]
+            
+
     def _read(self, fh, size, seek=None):
         if seek is not None:
             os.lseek(fh, seek, os.SEEK_SET)
@@ -161,7 +167,7 @@ class RencFSEncrypt(RencFSBase):
 
     def read(self, path, length, offset, fh):
         data = b''
-        h = self.keys[fh]
+        h = self._key(fh)
         if offset < MAC_SIZE:
             data = self.aes_ecb.encrypt(h)[offset:offset+length]
             length -= MAC_SIZE - offset
@@ -203,7 +209,7 @@ class RencFSDecrypt(RencFSBase):
         return st
 
     def read(self, path, length, offset, fh):
-        h = self.keys[fh]
+        h = self._key(fh)
         offset += MAC_SIZE
         return self._dec(h, offset, self._read(fh, length, offset))
 
