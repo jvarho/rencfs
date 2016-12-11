@@ -80,7 +80,10 @@ class RencFSBase(Operations):
 
     def getattr(self, path, fh=None):
         full_path = self._fullpath(path)
-        st = os.lstat(full_path)
+        try:
+            st = os.lstat(full_path)
+        except OSError as e:
+            raise FuseOSError(e.errno)
         st = dict((key, getattr(st, key)) for key in (
             'st_atime', 'st_ctime', 'st_gid', 'st_mode',
             'st_mtime', 'st_nlink', 'st_size', 'st_uid'

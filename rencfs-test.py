@@ -107,6 +107,13 @@ class RencFSTest(TestCase):
             1
         )
 
+    def test_getattr_failure(self):
+        self.assertRaises(
+            FuseOSError,
+            self.fs.getattr,
+            '__'
+        )
+
     def test_create(self):
         self.assertRaises(
             FuseOSError,
