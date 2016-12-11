@@ -144,7 +144,10 @@ class RencFSBase(Operations):
 
     def release(self, path, fh):
         self.keys.pop(fh, None)
-        return os.close(fh)
+        try:
+            return os.close(fh)
+        except OSError as e:
+            raise FuseOSError(e.errno)
 
 
 class RencFSEncrypt(RencFSBase):

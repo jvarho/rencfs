@@ -145,6 +145,12 @@ class RencFSTest(TestCase):
         self.assertIn(fh, self.fs.keys)
         self.fs.release(self.tf, fh)
         self.assertNotIn(fh, self.fs.keys)
+        self.assertRaises(
+            FuseOSError,
+            self.fs.release,
+            self.tf,
+            fh
+        )
 
 
 class EncryptTest(RencFSTest):
