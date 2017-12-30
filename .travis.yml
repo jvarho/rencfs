@@ -1,9 +1,5 @@
 language: python
 
-sudo: required
-
-dist: trusty
-
 branches:
     only:
         - master
@@ -11,17 +7,20 @@ branches:
 python:
     - "2.7"
     - "3.4"
-    - "3.6"
 
 addons:
     apt:
         packages:
             fuse
 
+env:
+    - CRYPTO_BACKEND=cryptography
+    - CRYPTO_BACKEND=pycrypto
+
 install:
     - pip install coveralls
     - pip install fusepy
-    - pip install pycrypto
+    - pip install $CRYPTO_BACKEND
 
 script:
     - make test

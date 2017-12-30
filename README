@@ -14,6 +14,9 @@ Installation:
 Requires:
 * Python 2.7 or 3.4+
 * fusepy, e.g. `pip install fusepy`
+
+One of:
+* pyca/cryptography, e.g. `pip install cryptography`
 * PyCrypto, e.g. `pip install pycrypto`
 
 
