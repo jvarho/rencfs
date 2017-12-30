@@ -1,6 +1,6 @@
 #!/usr/bin/python
 
-# Copyright (c) 2016, Jan Varho
+# Copyright (c) 2016-2017, Jan Varho
 #
 # Permission to use, copy, modify, and/or distribute this software for any
 # purpose with or without fee is hereby granted, provided that the above
@@ -27,10 +27,9 @@ from argparse import ArgumentParser, SUPPRESS
 from base64 import b16encode
 from hashlib import sha256
 
-from Crypto.Cipher import AES
-from Crypto.Util import Counter
-
 from fuse import FUSE, FuseOSError, Operations
+
+from aes import aes_ctr, aes_ecb
 
 
 __version__ = '0.6'
@@ -45,7 +44,7 @@ class RencFSBase(Operations):
     def __init__(self, root, key):
         self.root = root
         self.hmac = hmac.new(key[:16], digestmod=sha256)
-        self.aes_ecb = AES.new(key[16:], AES.MODE_ECB)
+        self.aes_ecb = aes_ecb(key[16:])
         self.keys = {}
 
     # Helpers
@@ -58,8 +57,7 @@ class RencFSBase(Operations):
 
     def _enc(self, key, offset, data):
         index = offset // BLOCK_SIZE
-        ctr = Counter.new(128, initial_value=index)
-        aes = AES.new(key, AES.MODE_CTR, counter=ctr)
+        aes = aes_ctr(key, index)
         if not offset & BLOCK_MASK:
             return aes.encrypt(data)
         data = b'\0' * (offset & BLOCK_MASK) + data

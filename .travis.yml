@@ -21,7 +21,7 @@ addons:
 install:
     - pip install coveralls
     - pip install fusepy
-    - pip install pycrypto
+    - pip install cryptography
 
 script:
     - make test
