@@ -1,6 +1,6 @@
-#!/usr/bin/python
+#!/usr/bin/python3
 
-# Copyright (c) 2017, Jan Varho
+# Copyright (c) 2017-2020, Jan Varho
 #
 # Permission to use, copy, modify, and/or distribute this software for any
 # purpose with or without fee is hereby granted, provided that the above
@@ -65,3 +65,10 @@ except:
     pycrypto_aes_ecb(b'\1'*16)
     aes_ecb = pycrypto_aes_ecb
     aes_ctr = pycrypto_aes_ctr
+
+if __name__ == '__main__': #pragma no cover
+    a = aes_ecb(b'\1'*16).encrypt(b'\0'*16)
+    b = aes_ctr(b'\1'*16, 0).encrypt(b'\0'*16)
+    c = aes_ctr(b'\1'*16, 1).encrypt(b'\0'*16)
+    assert a == b
+    assert a != c

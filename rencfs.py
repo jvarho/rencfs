@@ -1,6 +1,6 @@
-#!/usr/bin/python
+#!/usr/bin/python3
 
-# Copyright (c) 2016-2017, Jan Varho
+# Copyright (c) 2016-2020, Jan Varho
 #
 # Permission to use, copy, modify, and/or distribute this software for any
 # purpose with or without fee is hereby granted, provided that the above
@@ -27,12 +27,15 @@ from argparse import ArgumentParser, SUPPRESS
 from base64 import b16encode
 from hashlib import sha256
 
-from fuse import FUSE, FuseOSError, Operations
+try:
+    from fusepy import FUSE, FuseOSError, Operations
+except ImportError:
+    from fuse import FUSE, FuseOSError, Operations
 
 from aes import aes_ctr, aes_ecb
 
 
-__version__ = '0.6'
+__version__ = '0.7'
 
 BLOCK_MASK = 15
 BLOCK_SIZE = 16
