@@ -5,8 +5,8 @@ branches:
         - master
 
 python:
-    - "2.7"
     - "3.4"
+    - "3.9"
 
 addons:
     apt:

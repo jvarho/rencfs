@@ -1,6 +1,6 @@
-#!/usr/bin/python
+#!/usr/bin/python3
 
-# Copyright (c) 2016, Jan Varho
+# Copyright (c) 2016-2020, Jan Varho
 #
 # Permission to use, copy, modify, and/or distribute this software for any
 # purpose with or without fee is hereby granted, provided that the above
@@ -17,7 +17,11 @@
 import os
 from os import urandom, R_OK, W_OK, X_OK
 from unittest import defaultTestLoader, TestCase, TestSuite, TextTestRunner
-from fuse import FuseOSError
+
+try:
+    from fusepy import FUSE, FuseOSError, Operations
+except ImportError:
+    from fuse import FUSE, FuseOSError, Operations
 
 from rencfs import RencFSEncrypt, RencFSDecrypt
 
