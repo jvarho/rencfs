@@ -70,7 +70,7 @@ class RencFSBase(Operations):
         if fh not in self.keys:
             raise FuseOSError(errno.EBADF)
         return self.keys[fh]
-            
+
 
     def _read(self, fh, size, seek=None):
         if seek is not None:
@@ -243,7 +243,7 @@ if __name__ == '__main__': #pragma no cover
 
 
     args = parse_args()
-    key = sha256(args.KEY).digest()
+    key = sha256(args.KEY.encode()).digest()
     if args.decrypt:
         fs = RencFSDecrypt(args.ROOT, key, args.verify)
     else:
